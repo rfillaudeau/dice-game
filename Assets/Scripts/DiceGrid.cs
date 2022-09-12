@@ -1,19 +1,19 @@
 using UnityEngine;
 
-public class DiceColumns : MonoBehaviour
+public class DiceGrid : MonoBehaviour
 {
     public DiceColumn[] columns { get { return _columns; } }
 
     [SerializeField] protected DiceColumn[] _columns;
 
-    public void AddDiceInColumn(int diceNumber, int columnIndex)
+    public void AddDiceInColumn(MovingDice dice, int columnIndex)
     {
-        _columns[columnIndex].AddDice(diceNumber);
+        _columns[columnIndex].AddDice(dice);
     }
 
     public void RemoveDiceInColumn(int diceNumber, int columnIndex)
     {
-        _columns[columnIndex].RemoveDice(diceNumber);
+        _columns[columnIndex].RemoveDicesWithNumber(diceNumber);
     }
 
     public int GetScore()

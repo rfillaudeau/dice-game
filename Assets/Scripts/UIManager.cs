@@ -1,24 +1,47 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
 using TMPro;
 
 public class UIManager : MonoBehaviour
 {
     [SerializeField] private TextMeshProUGUI _centerText;
 
+    [SerializeField] private Player _player;
+    [SerializeField] private Computer _computer;
+
     private void OnEnable()
     {
+        GameManager.onGameIsSetup += DisplayStartingPlayer;
+        GameManager.onGameStart += HideCenterText;
         GameManager.onGameOver += DisplayGameOverText;
     }
 
     private void OnDisable()
     {
+        GameManager.onGameIsSetup -= DisplayStartingPlayer;
+        GameManager.onGameStart -= HideCenterText;
         GameManager.onGameOver -= DisplayGameOverText;
     }
 
     private void Start()
+    {
+        HideCenterText();
+    }
+
+    private void DisplayStartingPlayer()
+    {
+        _centerText.gameObject.SetActive(true);
+
+        if (GameManager.instance.isPlayerTurn)
+        {
+            _centerText.SetText($"PLAYER STARTS");
+        }
+        else
+        {
+            _centerText.SetText($"COMPUTER STARTS");
+        }
+    }
+
+    private void HideCenterText()
     {
         _centerText.gameObject.SetActive(false);
     }
@@ -27,20 +50,17 @@ public class UIManager : MonoBehaviour
     {
         _centerText.gameObject.SetActive(true);
 
-        int playerScore = GameManager.instance.playerScore;
-        int computerScore = GameManager.instance.computerScore;
-
-        if (playerScore > computerScore)
+        if (_player.score > _computer.score)
         {
-            _centerText.SetText($"PLAYER WINS {playerScore}-{computerScore}");
+            _centerText.SetText($"PLAYER WINS {_player.score}-{_computer.score}");
         }
-        else if (playerScore == computerScore)
+        else if (_player.score == _computer.score)
         {
             _centerText.SetText("DRAW");
         }
         else
         {
-            _centerText.SetText($"COMPUTER WINS {computerScore}-{playerScore}");
+            _centerText.SetText($"COMPUTER WINS {_computer.score}-{_player.score}");
         }
     }
 }

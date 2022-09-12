@@ -1,28 +1,27 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using TMPro;
 
 public class GameManager : MonoBehaviour
 {
+    public static System.Action onGameIsSetup;
+    public static System.Action onGameStart;
     public static System.Action onGameOver;
 
     public static GameManager instance { get; private set; }
 
-    public int playerScore { get; private set; }
-    public int computerScore { get; private set; }
+    public bool isPlayerTurn { get; private set; }
 
-    [SerializeField] private TextMeshPro _playerScoreText;
-    [SerializeField] private TextMeshPro _computerScoreText;
+    [SerializeField] private Player _player;
+    [SerializeField] private Computer _computer;
 
-    [SerializeField] private RollingDice _playerDice;
-    [SerializeField] private RollingDice _computerDice;
+    [SerializeField] private MovingDice _dicePrefab;
 
-    [SerializeField] private PlayerDiceColumns _playerColumns;
-    [SerializeField] private ComputerDiceColumns _computerColumns;
+    [SerializeField] private float _timeBeforeGameStart = 2f;
 
-    private TurnState _state;
+    private MovingDice _currentDice;
 
-    private bool _isPlayerTurn;
+    private bool _canRollDice;
     private bool _isGameOver;
 
     public void RestartGame()
@@ -53,103 +52,114 @@ public class GameManager : MonoBehaviour
 
     private void OnEnable()
     {
-        _playerDice.onRollEnded += DiceRollEnded;
-        _computerDice.onRollEnded += DiceRollEnded;
+        MovingDice.onRollEnded += DiceRollEnded;
 
         DiceColumn.onSelected += ColumnSelected;
+        DiceColumn.onDiceAdded += DiceAddedInColumn;
+        DiceColumn.onDicesRemoved += DicesRemovedInColumn;
     }
 
     private void OnDisable()
     {
-        _playerDice.onRollEnded -= DiceRollEnded;
-        _computerDice.onRollEnded -= DiceRollEnded;
+        MovingDice.onRollEnded -= DiceRollEnded;
 
         DiceColumn.onSelected -= ColumnSelected;
+        DiceColumn.onDiceAdded -= DiceAddedInColumn;
+        DiceColumn.onDicesRemoved -= DicesRemovedInColumn;
     }
 
     private void Start()
     {
         _isGameOver = false;
-        _isPlayerTurn = Random.Range(0, 2) == 1;
+        isPlayerTurn = Random.Range(0, 2) == 1;
 
-        _state = TurnState.RollDice;
+        _canRollDice = false;
 
-        _playerDice.gameObject.SetActive(false);
-        _computerDice.gameObject.SetActive(false);
-
-        _playerColumns.SetCanSelectColumn(false);
+        _player.SetCanSelectColumn(false);
 
         UpdateScores();
-        UpdateScoreTexts();
+
+        onGameIsSetup?.Invoke();
+
+        StartCoroutine(StartGame());
     }
 
     private void Update()
     {
-        HandleTurn();
+        RollDice();
     }
 
-    private void HandleTurn()
+    private void RollDice()
     {
-        if (_isGameOver)
+        if (!_canRollDice || _isGameOver)
         {
             return;
         }
 
-        if (_state == TurnState.RollDice)
-        {
-            if (_isPlayerTurn)
-            {
-                _playerDice.gameObject.SetActive(true);
-                _playerDice.Roll();
-            }
-            else
-            {
-                _computerDice.gameObject.SetActive(true);
-                _computerDice.Roll();
-            }
+        Vector3 position;
 
-            _state = TurnState.WaitForDice;
+        if (isPlayerTurn)
+        {
+            position = _player.diceBox.position;
         }
+        else
+        {
+            position = _computer.diceBox.position;
+        }
+
+        _currentDice = Instantiate(_dicePrefab, position, Quaternion.identity);
+        _currentDice.Roll();
+
+        _canRollDice = false;
     }
 
     private void DiceRollEnded()
     {
-        _state = TurnState.PlaceDice;
-
-        if (_isPlayerTurn)
+        if (isPlayerTurn)
         {
-            _playerColumns.SetCanSelectColumn(true);
+            _player.SetCanSelectColumn(true);
         }
         else
         {
-            _computerColumns.SelectColumn(_computerDice.dice.number);
+            _computer.SelectColumn(_currentDice.dice.number);
         }
     }
 
     private void ColumnSelected(int columnIndex)
     {
-        if (_isPlayerTurn)
+        if (isPlayerTurn)
         {
-            _playerDice.gameObject.SetActive(false);
-            _playerColumns.SetCanSelectColumn(false);
+            _player.SetCanSelectColumn(false);
 
-            _playerColumns.AddDiceInColumn(_playerDice.dice.number, columnIndex);
-            _computerColumns.RemoveDiceInColumn(_playerDice.dice.number, columnIndex);
+            _player.diceGrid.AddDiceInColumn(_currentDice, columnIndex);
         }
         else
         {
-            _computerDice.gameObject.SetActive(false);
+            _computer.diceGrid.AddDiceInColumn(_currentDice, columnIndex);
+        }
+    }
 
-            _computerColumns.AddDiceInColumn(_computerDice.dice.number, columnIndex);
-            _playerColumns.RemoveDiceInColumn(_computerDice.dice.number, columnIndex);
+    private void DiceAddedInColumn(int diceNumber, int columnIndex)
+    {
+        if (isPlayerTurn)
+        {
+            _computer.diceGrid.RemoveDiceInColumn(_currentDice.dice.number, columnIndex);
+        }
+        else
+        {
+            _player.diceGrid.RemoveDiceInColumn(_currentDice.dice.number, columnIndex);
         }
 
+        _currentDice = null;
+    }
+
+    private void DicesRemovedInColumn()
+    {
         UpdateScores();
-        UpdateScoreTexts();
 
-        _isPlayerTurn = !_isPlayerTurn;
+        isPlayerTurn = !isPlayerTurn;
 
-        if (_playerColumns.IsFull() || _computerColumns.IsFull())
+        if (_player.diceGrid.IsFull() || _computer.diceGrid.IsFull())
         {
             _isGameOver = true;
 
@@ -158,18 +168,21 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        _state = TurnState.RollDice;
+        _canRollDice = true;
     }
 
     private void UpdateScores()
     {
-        playerScore = _playerColumns.GetScore();
-        computerScore = _computerColumns.GetScore();
+        _player.UpdateScore();
+        _computer.UpdateScore();
     }
 
-    private void UpdateScoreTexts()
+    private IEnumerator StartGame()
     {
-        _playerScoreText.SetText(playerScore.ToString());
-        _computerScoreText.SetText(computerScore.ToString());
+        yield return new WaitForSeconds(_timeBeforeGameStart);
+
+        _canRollDice = true;
+
+        onGameStart?.Invoke();
     }
 }

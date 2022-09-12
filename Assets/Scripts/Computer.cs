@@ -1,14 +1,27 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using TMPro;
 
-public class ComputerDiceColumns : DiceColumns
+public class Computer : MonoBehaviour
 {
+    public int score { get; private set; }
+    public DiceGrid diceGrid;
+    public Transform diceBox;
+
+    [SerializeField] private TextMeshPro _scoreText;
+
     [SerializeField] private ComputerDifficulty _difficulty = ComputerDifficulty.Easy;
 
-    [SerializeField] private PlayerDiceColumns _playerColumns;
+    [SerializeField] private Player _player;
 
-    [SerializeField] private float _timeBetweenSteps = 1f;
+    [SerializeField] private float _timeBeforeSelection = 1f;
+
+    public void UpdateScore()
+    {
+        score = diceGrid.GetScore();
+
+        _scoreText.SetText(score.ToString());
+    }
 
     public void SelectColumn(int diceNumber)
     {
@@ -23,58 +36,58 @@ public class ComputerDiceColumns : DiceColumns
 
     private void Easy(int diceNumber)
     {
-        _columns[GetRandomAvailableIndex()].Select();
+        diceGrid.columns[GetRandomAvailableIndex()].Select();
     }
 
     private IEnumerator Normal(int diceNumber)
     {
-        yield return new WaitForSeconds(_timeBetweenSteps);
+        yield return new WaitForSeconds(_timeBeforeSelection);
 
         int? sameNumberInPlayerIndex = GetIndexForSameNumberInPlayerColumns(diceNumber);
         if (sameNumberInPlayerIndex != null)
         {
-            _columns[sameNumberInPlayerIndex.Value].Select();
+            diceGrid.columns[sameNumberInPlayerIndex.Value].Select();
 
             yield break;
         }
 
-        yield return new WaitForSeconds(_timeBetweenSteps);
+        yield return null;
 
         int? sameNumberInIndex = GetIndexForSameNumber(diceNumber);
         if (sameNumberInIndex != null)
         {
-            _columns[sameNumberInIndex.Value].Select();
+            diceGrid.columns[sameNumberInIndex.Value].Select();
 
             yield break;
         }
 
-        yield return new WaitForSeconds(_timeBetweenSteps);
+        yield return null;
 
         int? emptyColumnIndex = GetIndexForEmptyColumn();
         if (emptyColumnIndex != null)
         {
-            _columns[emptyColumnIndex.Value].Select();
+            diceGrid.columns[emptyColumnIndex.Value].Select();
 
             yield break;
         }
 
-        yield return new WaitForSeconds(_timeBetweenSteps);
+        yield return null;
 
-        _columns[GetRandomAvailableIndex()].Select();
+        diceGrid.columns[GetRandomAvailableIndex()].Select();
     }
 
     private int? GetIndexForSameNumber(int diceNumber)
     {
-        foreach (DiceColumn column in _columns)
+        foreach (DiceColumn column in diceGrid.columns)
         {
             if (column.IsFull())
             {
                 continue;
             }
 
-            foreach (int number in column.numbers)
+            foreach (MovingDice dice in column.dices)
             {
-                if (number == diceNumber)
+                if (dice != null && dice.dice.number == diceNumber)
                 {
                     return column.index;
                 }
@@ -86,16 +99,16 @@ public class ComputerDiceColumns : DiceColumns
 
     private int? GetIndexForSameNumberInPlayerColumns(int diceNumber)
     {
-        foreach (DiceColumn column in _playerColumns.columns)
+        foreach (DiceColumn column in _player.diceGrid.columns)
         {
-            if (_columns[column.index].IsFull())
+            if (diceGrid.columns[column.index].IsFull())
             {
                 continue;
             }
 
-            foreach (int number in column.numbers)
+            foreach (MovingDice dice in column.dices)
             {
-                if (number == diceNumber)
+                if (dice != null && dice.dice.number == diceNumber)
                 {
                     return column.index;
                 }
@@ -107,7 +120,7 @@ public class ComputerDiceColumns : DiceColumns
 
     private int? GetIndexForEmptyColumn()
     {
-        foreach (DiceColumn column in _columns)
+        foreach (DiceColumn column in diceGrid.columns)
         {
             if (column.IsEmpty())
             {
@@ -122,9 +135,9 @@ public class ComputerDiceColumns : DiceColumns
     {
         while (true)
         {
-            int randomIndex = Random.Range(0, _columns.Length);
+            int randomIndex = Random.Range(0, diceGrid.columns.Length);
 
-            if (_columns[randomIndex].IsFull())
+            if (diceGrid.columns[randomIndex].IsFull())
             {
                 continue;
             }

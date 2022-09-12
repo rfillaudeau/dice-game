@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using TMPro;
@@ -6,71 +7,34 @@ using TMPro;
 public class DiceColumn : MonoBehaviour
 {
     public static event Action<int> onSelected;
+    public static event Action<int, int> onDiceAdded;
+    public static event Action onDicesRemoved;
 
-    public int score { get { return _score; } }
-    public int[] numbers { get { return _numbers; } }
-    public bool isSelectable { get { return _isSelectable; } }
+    public int score { get; private set; }
+    public MovingDice[] dices { get; private set; }
+    public bool isSelectable { get; private set; }
+
     [NonSerialized] public int index;
 
-    [SerializeField] private Dice[] _dices;
+    [SerializeField] private Transform[] _slots;
     [SerializeField] private TextMeshPro _scoreText;
     [SerializeField] private ColumnSelector _selector;
 
-    private int[] _numbers;
-    private int _score;
-    private bool _isSelectable;
-
-    public void AddDice(int diceNumber)
+    public void AddDice(MovingDice dice)
     {
-        for (int i = 0; i < _numbers.Length; i++)
-        {
-            if (_numbers[i] == 0)
-            {
-                _numbers[i] = diceNumber;
-                break;
-            }
-        }
-
-        UpdateColumn();
+        StartCoroutine(AddDiceCoroutine(dice));
     }
 
-    public void RemoveDice(int diceNumber)
+    public void RemoveDicesWithNumber(int number)
     {
-        for (int i = 0; i < _numbers.Length; i++)
-        {
-            if (_numbers[i] == diceNumber)
-            {
-                _numbers[i] = 0;
-            }
-        }
-
-        // Reorder column
-        for (int i = 0; i < _numbers.Length; i++)
-        {
-            if (_numbers[i] > 0)
-            {
-                continue;
-            }
-
-            for (int j = i + 1; j < _numbers.Length; j++)
-            {
-                if (_numbers[j] > 0)
-                {
-                    _numbers[i] = _numbers[j];
-                    _numbers[j] = 0;
-                    break;
-                }
-            }
-        }
-
-        UpdateColumn();
+        StartCoroutine(RemoveDicesWithNumberCoroutine(number));
     }
 
     public bool IsFull()
     {
-        foreach (int number in _numbers)
+        foreach (MovingDice dice in dices)
         {
-            if (number == 0)
+            if (dice == null)
             {
                 return false;
             }
@@ -81,9 +45,9 @@ public class DiceColumn : MonoBehaviour
 
     public bool IsEmpty()
     {
-        foreach (int number in _numbers)
+        foreach (MovingDice dice in dices)
         {
-            if (number > 0)
+            if (dice != null)
             {
                 return false;
             }
@@ -106,17 +70,17 @@ public class DiceColumn : MonoBehaviour
 
     public void SetIsSelectable(bool isSelectable)
     {
-        _isSelectable = isSelectable;
+        this.isSelectable = isSelectable;
         _selector.SetIsSelectable(isSelectable);
     }
 
     private void Start()
     {
-        _numbers = new int[3];
+        dices = new MovingDice[_slots.Length];
 
         SetIsSelectable(false);
 
-        UpdateColumn();
+        UpdateScore();
     }
 
     private void OnMouseDown()
@@ -129,51 +93,115 @@ public class DiceColumn : MonoBehaviour
         Select();
     }
 
-    private void UpdateColumn()
-    {
-        UpdateScore();
-        UpdateScoreText();
-        UpdateDices();
-    }
-
-    private void UpdateScoreText()
-    {
-        _scoreText.SetText(_score.ToString());
-    }
-
     private void UpdateScore()
     {
-        _score = 0;
+        score = 0;
 
-        for (int i = 0; i < _numbers.Length; i++)
+        for (int i = 0; i < dices.Length; i++)
         {
-            int multiplier = Array.FindAll(_numbers, x => x == _numbers[i]).Length;
-            if (multiplier == 0)
+            if (dices[i] == null)
             {
-                multiplier = 1;
-            }
-
-            _score += _numbers[i] * multiplier;
-        }
-    }
-
-    private void UpdateDices()
-    {
-        for (int i = 0; i < _numbers.Length; i++)
-        {
-            if (_numbers[i] == 0)
-            {
-                _dices[i].SetNumber(0);
                 continue;
             }
 
-            int multiplier = Array.FindAll(_numbers, x => x == _numbers[i]).Length;
+            int multiplier = Array.FindAll(dices, d => d != null && d.dice.number == dices[i].dice.number).Length;
             if (multiplier == 0)
             {
                 multiplier = 1;
             }
 
-            _dices[i].SetNumber(_numbers[i], multiplier);
+            score += dices[i].dice.number * multiplier;
+
+            dices[i].dice.SetMultiplier(multiplier);
         }
+
+        _scoreText.SetText(score.ToString());
+    }
+
+    private IEnumerator AddDiceCoroutine(MovingDice dice)
+    {
+        for (int i = 0; i < dices.Length; i++)
+        {
+            if (dices[i] == null)
+            {
+                dices[i] = dice;
+
+                dice.MoveTo(_slots[i].position);
+
+                break;
+            }
+        }
+
+        while (dice.isMoving)
+        {
+            yield return null;
+        }
+
+        UpdateScore();
+
+        onDiceAdded?.Invoke(dice.dice.number, index);
+    }
+
+    private IEnumerator RemoveDicesWithNumberCoroutine(int number)
+    {
+        float waitTimeBeforeReorder = 0f;
+        for (int i = 0; i < dices.Length; i++)
+        {
+            if (dices[i] == null)
+            {
+                continue;
+            }
+
+            if (dices[i].dice.number == number)
+            {
+                dices[i].dice.Remove();
+
+                waitTimeBeforeReorder = dices[i].dice.removeTime;
+
+                dices[i] = null;
+            }
+        }
+
+        yield return new WaitForSeconds(waitTimeBeforeReorder);
+
+        for (int i = 0; i < dices.Length; i++)
+        {
+            if (dices[i] != null)
+            {
+                continue;
+            }
+
+            for (int j = i + 1; j < dices.Length; j++)
+            {
+                if (dices[j] != null)
+                {
+                    dices[j].MoveTo(_slots[i].position);
+
+                    dices[i] = dices[j];
+                    dices[j] = null;
+                    break;
+                }
+            }
+        }
+
+        bool hasMovingDice = true;
+        while (hasMovingDice)
+        {
+            hasMovingDice = false;
+            foreach (MovingDice dice in dices)
+            {
+                if (dice != null && dice.isMoving)
+                {
+                    hasMovingDice = true;
+                    break;
+                }
+            }
+
+            yield return null;
+        }
+
+        UpdateScore();
+
+        onDicesRemoved?.Invoke();
     }
 }

@@ -3,29 +3,45 @@ using UnityEngine;
 [RequireComponent(typeof(SpriteRenderer))]
 public class Dice : MonoBehaviour
 {
-    public int number { get { return _number; } }
+    public event System.Action<int> onMultiplierChanged;
+    public event System.Action onRemoved;
+
+    public int number { get; private set; }
+    public int multiplier { get; private set; }
+    public float removeTime { get { return _removeTime; } }
 
     [SerializeField] private Sprite[] _sprites;
+    [SerializeField] private float _removeTime = 1f;
 
     private SpriteRenderer _spriteRenderer;
 
-    private int _number;
-
-    public void SetNumber(int number, int multiplier = 1)
+    public void SetNumber(int number)
     {
-        _number = number;
+        this.number = number;
 
-        if (number > 0)
-        {
-            gameObject.SetActive(true);
+        _spriteRenderer.sprite = _sprites[number - 1];
+    }
 
-            _spriteRenderer.sprite = _sprites[_number - 1];
-            SetMultiplier(multiplier);
-        }
-        else
+    public void SetRandomNumber()
+    {
+        SetNumber(Random.Range(1, 7));
+    }
+
+    public void SetMultiplier(int multiplier)
+    {
+        if (this.multiplier != multiplier)
         {
-            gameObject.SetActive(false);
+            onMultiplierChanged?.Invoke(multiplier);
         }
+
+        this.multiplier = multiplier;
+    }
+
+    public void Remove()
+    {
+        onRemoved?.Invoke();
+
+        Destroy(gameObject, _removeTime);
     }
 
     private void Awake()
@@ -33,21 +49,8 @@ public class Dice : MonoBehaviour
         _spriteRenderer = GetComponent<SpriteRenderer>();
     }
 
-    private void SetMultiplier(int multiplier)
+    private void Start()
     {
-        switch (multiplier)
-        {
-            case 2:
-                _spriteRenderer.color = new Color(1f, 0.8352941f, 0.5254902f, 1f);
-                break;
-
-            case 3:
-                _spriteRenderer.color = new Color(0.4588235f, 0.7529412f, 1f, 1f);
-                break;
-
-            default:
-                _spriteRenderer.color = Color.white;
-                break;
-        }
+        SetRandomNumber();
     }
 }
