@@ -173,7 +173,7 @@ MonoBehaviour:
   _rollTime: 1.5
   _randomizeNumberRate: 0.08
   _movingSpeed: 25
-  _stopRadius: 0.1
+  _stopRadius: 0.5
   _movingElevation: 1
 --- !u!114 &5961657623963424437
 MonoBehaviour:
